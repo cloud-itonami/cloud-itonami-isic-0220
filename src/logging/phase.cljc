@@ -1,69 +1,78 @@
 (ns logging.phase
-  "Phase gates for the logging operations actor: Phase 0->3 rollout.
-  Each phase allows different operations to auto-commit vs. require approval.
+  "Phase 0->3 staged rollout for the community-logging coordination
+  actor.
 
-  Phase 0 (Planning): Most operations require approval, no auto-commit
-  Phase 1 (Assessment): Initial site assessments can auto-commit if clean
-  Phase 2 (Coordination): Harvest/dispatch operations require approval
-  Phase 3 (Operations): No auto-commit, all actuation requires human approval
+    Phase 0  read-only          -- no writes, still governor-gated.
+    Phase 1  assisted-intake    -- harvest-record logging allowed, every
+                                    write needs human approval.
+    Phase 2  assisted-coordinate -- adds safety-concern flags and
+                                    supply-order proposals, still
+                                    approval.
+    Phase 3  supervised-auto    -- adds field-operation scheduling
+                                    (still always approval -- see
+                                    below); governor-clean, high-
+                                    confidence `:log-harvest-record` (no
+                                    physical/financial risk) may auto-
+                                    commit.
 
-  CRITICAL: Safety hazards ALWAYS escalate, regardless of phase.")
+  `:schedule-field-operation` is deliberately ABSENT from every phase's
+  `:auto` set, including phase 3 -- a permanent structural fact, not a
+  rollout milestone still to come. Scheduling a real field operation
+  against a site is the one act in this domain with physical
+  consequence (felling/skidding-equipment/crew dispatch follows a
+  scheduled operation); it is always a human logging manager's call.
+  `logging.governor`'s `harvest-finalize-blocked-violations` HARD-blocks
+  finalize attempts unconditionally, and the confidence/high-stakes
+  gate independently never lets `:flag-safety-concern` or an
+  over-threshold `:order-supplies` proposal auto-commit either --
+  multiple independent layers agree on where this actor's authority
+  ends. Like every prior sibling's phase-3 `:auto` set, this domain
+  has only ONE member (`:log-harvest-record`) -- no separate no-risk
+  lifecycle distinct from ordinary record logging.")
 
-(def default-phase :phase-0)
+(def write-ops
+  #{:log-harvest-record :schedule-field-operation
+    :flag-safety-concern :order-supplies})
 
-(def phase-specs
-  {:phase-0 {:name "Planning"
-             :auto #{}  ; Nothing auto-commits in phase 0
-             :requires-approval #{:log-harvest-record
-                                  :schedule-crew-dispatch
-                                  :flag-safety-hazard
-                                  :coordinate-timber-shipment}}
-   :phase-1 {:name "Assessment"
-             :auto #{}  ; Assessment only if low-risk
-             :requires-approval #{:log-harvest-record
-                                  :schedule-crew-dispatch
-                                  :flag-safety-hazard
-                                  :coordinate-timber-shipment}}
-   :phase-2 {:name "Coordination"
-             :auto #{}
-             :requires-approval #{:log-harvest-record
-                                  :schedule-crew-dispatch
-                                  :coordinate-timber-shipment}}
-   :phase-3 {:name "Operations"
-             :auto #{}
-             :requires-approval #{:log-harvest-record
-                                  :schedule-crew-dispatch
-                                  :coordinate-timber-shipment}}})
+;; NOTE the invariant: `:schedule-field-operation` is a member of
+;; `write-ops` (governor-gated like any write) but is NEVER a member of
+;; any phase's `:auto` set below. Do not add it there.
+(def phases
+  "phase -> {:label .. :writes <ops allowed to write> :auto <ops allowed
+  to auto-commit when governor-clean>}."
+  {0 {:label "read-only"           :writes #{}                                            :auto #{}}
+   1 {:label "assisted-intake"     :writes #{:log-harvest-record}                          :auto #{}}
+   2 {:label "assisted-coordinate" :writes #{:log-harvest-record :flag-safety-concern
+                                             :order-supplies}                              :auto #{}}
+   3 {:label "supervised-auto"     :writes write-ops
+      :auto #{:log-harvest-record}}})
 
-(defn verdict->disposition [verdict]
-  "Map governor verdict to base disposition."
-  (if (seq (:violations verdict))
-    :hold
-    (if (:escalate? verdict)
-      :escalate
-      :commit)))
+(def default-phase 3)
 
-(defn gate [phase request base-disposition]
-  "Apply phase-specific gating rules. Safety hazards ALWAYS escalate.
-  Can only add caution, not remove it."
-  (let [is-safety-hazard (= :flag-safety-hazard (:op request))]
-    (case base-disposition
-      :hold
-      {:disposition :hold :reason nil}  ; Hard violations stay held
+(defn gate
+  "Adjust a governor disposition for the rollout phase. Returns
+  {:disposition kw :reason kw|nil}.
 
-      :escalate
-      {:disposition :escalate :reason nil}  ; Escalation stays escalated
+  - a governor HOLD always stays HOLD (compliance wins).
+  - a write op not yet enabled in this phase -> HOLD (:phase-disabled).
+  - a write op enabled but not auto-eligible -> ESCALATE (:phase-approval),
+    even if the governor was clean.
+  - `:schedule-field-operation` is never auto-eligible at any phase, so
+    it always escalates once the governor clears it (or holds if the
+    governor doesn't)."
+  [phase {:keys [op]} governor-disposition]
+  (let [{:keys [writes auto]} (get phases phase (get phases default-phase))]
+    (cond
+      (= :hold governor-disposition)       {:disposition :hold :reason nil}
+      (not (contains? writes op))          {:disposition :hold :reason :phase-disabled}
+      (and (= :commit governor-disposition)
+           (not (contains? auto op)))      {:disposition :escalate :reason :phase-approval}
+      :else                                {:disposition governor-disposition :reason nil})))
 
-      :commit
-      ;; Commit: check if it's a safety hazard (ALWAYS escalate)
-      ;; or check phase requirements
-      (if is-safety-hazard
-        {:disposition :escalate
-         :reason "Safety hazards always require human review"}
-        (let [phase-spec (get phase-specs phase default-phase)]
-          (if (= phase :phase-1)
-            ;; Phase 1: some low-risk ops can auto-commit
-            {:disposition :commit :reason nil}
-            ;; All other phases: require approval for actions
-            {:disposition :escalate
-             :reason (str "Phase " (:name phase-spec) " requires human approval")}))))))
+(defn verdict->disposition
+  "Map a Logging Coordination Governor verdict to a base disposition
+  before the phase gate."
+  [verdict]
+  (cond (:hard? verdict) :hold
+        (:escalate? verdict) :escalate
+        :else :commit))

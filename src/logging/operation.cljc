@@ -8,12 +8,13 @@
   One graph run = one logging operation (assess -> advise -> govern ->
   decide -> commit | hold | approval). No unbounded inner loop -- each
   operation is auditable and checkpointed. A site's lifecycle is advanced by
-  MANY ops (harvest record / dispatch scheduling / shipment), each independent.
+  MANY ops (harvest-record logging / scheduling / procurement), each
+  independent.
 
   Human-in-the-loop = real approval workflow:
   `interrupt-before #{:request-approval}` pauses the actor and hands the
-  decision to a human logging manager. The approver resumes with
-  `{:approval {:status :approved}}` (or :rejected)."
+  decision to a human logging manager/operations supervisor. The approver
+  resumes with `{:approval {:status :approved}}` (or :rejected)."
   (:require [langgraph.graph :as g]
             [langgraph.checkpoint :as cp]
             [logging.advisor :as advisor]
@@ -87,7 +88,6 @@
                         :op (:op request) :subject (:subject request)
                         :reason (or reason
                                     (cond (:high-stakes? verdict) :requires-manager-approval
-                                          (= :flag-safety-hazard (:op request)) :safety-hazard-escalation
                                           :else :standard-escalation))
                         :phase ph
                         :confidence (:confidence verdict)}]}
