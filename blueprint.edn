@@ -1,0 +1,28 @@
+{:itonami.blueprint/id "cloud-itonami-isic-0220"
+ :itonami.blueprint/name "Logging"
+ :itonami.blueprint/isic-rev5 "0220"
+ :itonami.blueprint/domain :forestry/logging
+ :itonami.blueprint/license "AGPL-3.0-or-later"
+ :itonami.blueprint/social-impact [:worker-safety :local-economy :sustainable-forestry]
+ :itonami.blueprint/governor :logging-coordination-governor
+ :itonami.blueprint/robotics true
+ :itonami.blueprint/required-technologies [:robotics :identity :forms :dmn :bpmn :audit-ledger :telemetry]
+ :itonami.blueprint/status :public-oss
+ :itonami.blueprint/maturity :implemented
+ :itonami.blueprint/implemented-slice
+ "LoggingAdvisor ⊣ Logging Coordination Governor, langgraph-clj
+ StateGraph, append-only audit ledger. A verified from-scratch redo
+ (see docs/adr/0001-architecture.md) superseding a prior REVERTED
+ attempt that shipped with no `deps.edn` and no `registry.cljc`. Four
+ ops (`:log-harvest-record` / `:schedule-field-operation` / `:flag-
+ safety-concern` / `:order-supplies`), all `:effect :propose` only.
+ Nine concrete governor checks elaborate this blueprint's four HARD
+ invariants: propose-only effect, closed op allowlist, closed
+ proposal-effect allowlist (no direct felling/skidding-equipment
+ control), permanent harvest-cut-plan-finalize block, independent
+ site/permit verification, independent permit-allowance recompute for
+ felling volume, double-schedule guard, species validation, and
+ supply-order total recompute. Safety-concern flagging and over-
+ threshold supply orders always escalate to a human logging manager;
+ `:log-harvest-record` is the only op eligible to auto-commit, and
+ only at phase 3 when governor-clean."}

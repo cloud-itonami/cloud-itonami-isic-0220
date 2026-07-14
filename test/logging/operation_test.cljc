@@ -1,8 +1,21 @@
 (ns logging.operation-test
+  "Smoke tests for the compiled LoggingOperationActor graph itself
+  (build + one happy path per op). The governor's full rule contract
+  (HARD holds, escalation, phase gating) is exercised in
+  `logging.governor-contract-test`; the Store contract in
+  `logging.store-contract-test`."
   (:require [clojure.test :refer [deftest is testing]]
+            [langgraph.graph :as g]
             [logging.operation :as op]
-            [logging.store :as store]
-            [logging.phase :as phase]))
+            [logging.store :as store]))
+
+(def coordinator {:actor-id "coord-1" :actor-role :logging-coordinator :phase 3})
+
+(defn- exec-op [actor tid request context]
+  (g/run* actor {:request request :context context} {:thread-id tid}))
+
+(defn- approve! [actor tid]
+  (g/run* actor {:approval {:status :approved :by "coord-1"}} {:thread-id tid :resume? true}))
 
 (deftest test-actor-builds
   (testing "LoggingOperationActor can be built with a store"
@@ -10,62 +23,52 @@
           actor (op/build s)]
       (is (not (nil? actor))))))
 
-(deftest test-harvest-record-proposal
-  (testing "Proposing a harvest record logs correctly"
+(deftest test-harvest-record-logging-proposal
+  (testing "Proposing a harvest-record log auto-commits when clean (phase 3, no physical/financial risk)"
     (let [s (-> (store/mem-store) (store/sample-data!))
           actor (op/build s)
-          request {:op :log-harvest-record
-                   :effect :propose
-                   :subject "site-001-harvest"}
-          context {:actor-id "logging-actor-01"
-                   :role :coordinator
-                   :phase phase/default-phase}
           initial-ledger-size (count (store/get-ledger s))
-          result (-> actor (.invoke {:request request :context context}))
+          result (exec-op actor "t1"
+                          {:op :log-harvest-record :effect :propose :subject "site-001"
+                           :patch {:species :douglas-fir}}
+                          coordinator)
           final-ledger-size (count (store/get-ledger s))]
       (is (> final-ledger-size initial-ledger-size))
-      (is (some? result)))))
+      (is (= :commit (get-in result [:state :disposition]))))))
 
-(deftest test-crew-dispatch-scheduling
-  (testing "Crew dispatch scheduling is proposed"
+(deftest test-field-operation-scheduling
+  (testing "Field operation scheduling always escalates for human approval"
     (let [s (-> (store/mem-store) (store/sample-data!))
           actor (op/build s)
-          request {:op :schedule-crew-dispatch
-                   :effect :propose
-                   :subject "crew-dispatch-001"}
-          context {:actor-id "logging-actor-01"
-                   :role :coordinator
-                   :phase phase/default-phase}
-          result (-> actor (.invoke {:request request :context context}))]
-      (is (some? result)))))
+          result (exec-op actor "t2"
+                          {:op :schedule-field-operation :effect :propose :subject "op-1"
+                           :value {:site-id "site-001" :operation-type :skidding
+                                   :scheduled-date "2026-08-01" :finalize? false}}
+                          coordinator)]
+      (is (= :interrupted (:status result)))
+      (is (= :commit (get-in (approve! actor "t2") [:state :disposition]))))))
 
-(deftest test-safety-hazard-escalation
-  (testing "Safety hazards always escalate"
+(deftest test-safety-concern-escalation
+  (testing "Safety concerns always escalate"
     (let [s (-> (store/mem-store) (store/sample-data!))
           actor (op/build s)
-          request {:op :flag-safety-hazard
-                   :effect :propose
-                   :subject "felling-hazard-detection"}
-          context {:actor-id "logging-actor-01"
-                   :role :coordinator
-                   :phase phase/default-phase}
-          result (-> actor (.invoke {:request request :context context}))]
+          result (exec-op actor "t3"
+                          {:op :flag-safety-concern :effect :propose :subject "concern-1"
+                           :value {:site-id "site-001" :severity :moderate :description "loose footing near skid trail"}}
+                          coordinator)]
+      (is (= :interrupted (:status result))))))
+
+(deftest test-supply-order-proposal
+  (testing "Supply order proposal is submitted and (when below threshold + matching) escalates for approval"
+    (let [s (-> (store/mem-store) (store/sample-data!))
+          actor (op/build s)
+          result (exec-op actor "t4"
+                          {:op :order-supplies :effect :propose :subject "order-1"
+                           :value {:items [{:name "chainsaw-fuel" :qty 100 :unit-cost 2.0}]
+                                   :claimed-total 200.0}}
+                          coordinator)]
       (is (some? result))
-      ;; Verify escalation happened
-      (is (= :escalate (:disposition result))))))
-
-(deftest test-timber-shipment-proposal
-  (testing "Timber shipment coordination proposal is submitted"
-    (let [s (-> (store/mem-store) (store/sample-data!))
-          actor (op/build s)
-          request {:op :coordinate-timber-shipment
-                   :effect :propose
-                   :subject "shipment-001"}
-          context {:actor-id "logging-actor-01"
-                   :role :coordinator
-                   :phase phase/default-phase}
-          result (-> actor (.invoke {:request request :context context}))]
-      (is (some? result)))))
+      (is (= :interrupted (:status result))))))
 
 (deftest test-ledger-is-append-only
   (testing "Audit ledger is append-only"
@@ -75,23 +78,8 @@
       (is (= (inc initial-count) (count (store/get-ledger s)))))))
 
 (deftest test-records-are-committed
-  (testing "Records can be committed to store"
+  (testing "The domain-agnostic commit-record! path stores a raw record by :id"
     (let [s (store/mem-store)
           record {:id "test-001" :data "test"}]
       (store/commit-record! s record)
       (is (= record (get (store/get-records s) "test-001"))))))
-
-(deftest test-safety-hazard-escalation-phase-independent
-  (testing "Safety hazards escalate in all phases"
-    (doseq [ph [:phase-0 :phase-1 :phase-2 :phase-3]]
-      (let [s (-> (store/mem-store) (store/sample-data!))
-            actor (op/build s)
-            request {:op :flag-safety-hazard
-                     :effect :propose
-                     :subject "felling-hazard"}
-            context {:actor-id "logging-actor-01"
-                     :role :coordinator
-                     :phase ph}
-            result (-> actor (.invoke {:request request :context context}))]
-        (is (= :escalate (:disposition result))
-            (str "Safety hazard must escalate in phase " ph))))))
