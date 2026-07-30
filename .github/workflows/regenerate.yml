@@ -40,10 +40,10 @@ jobs:
       - name: commit when changed
         working-directory: orgs/cloud-itonami/cloud-itonami-isic-0220
         run: |
-          if ! git diff --quiet docs/; then
+          git add docs/
+          if ! git diff --cached --quiet; then
             git config user.name "regenerate-board[bot]"
             git config user.email "noreply@github.com"
-            git add docs/
             git commit -m "chore(board): nightly regeneration through the actor (的確表示)"
             git push
           else
