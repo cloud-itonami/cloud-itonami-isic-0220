@@ -1,0 +1,51 @@
+# Nightly regeneration -- freshness automation (flagship checklist item 4,
+# ADR-2607189300 Wave5): rebuild docs/samples/operator-console.html through
+# the real actor (clojure -M:dev:render-html runs the full OperationActor
+# StateGraph -- LoggingCoord advisor -> Logging Governor -> phase gate ->
+# approval -- against the seeded site directory) and commit only when the
+# rendered board actually changed. Mirrors cloud-itonami-isic-6820's
+# regenerate.yml (the same standard-actor-shape sibling).
+name: regenerate-board
+on:
+  schedule:
+    - cron: '17 18 * * *'   # 03:17 JST nightly (off-minute, fleet-collision-avoidant)
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: orgs/cloud-itonami/cloud-itonami-isic-0220
+      - uses: actions/checkout@v4
+        with: {repository: kotoba-lang/langgraph, path: orgs/kotoba-lang/langgraph}
+      - uses: actions/checkout@v4
+        with: {repository: kotoba-lang/langchain, path: orgs/kotoba-lang/langchain}
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: DeLaGuardo/setup-clojure@13.0
+        with: { cli: latest }
+      - name: regenerate through the real actor
+        working-directory: orgs/cloud-itonami/cloud-itonami-isic-0220
+        run: clojure -M:dev:render-html
+      - name: verify (real output, not scaffolding)
+        working-directory: orgs/cloud-itonami/cloud-itonami-isic-0220
+        run: |
+          grep -q 'logging.render-html' docs/samples/operator-console.html
+          grep -q '<tbody>' docs/samples/operator-console.html
+          test "$(wc -l < docs/samples/operator-console.html)" -gt 30
+          echo "operator console sanity ok"
+      - name: commit when changed
+        working-directory: orgs/cloud-itonami/cloud-itonami-isic-0220
+        run: |
+          if ! git diff --quiet docs/; then
+            git config user.name "regenerate-board[bot]"
+            git config user.email "noreply@github.com"
+            git add docs/
+            git commit -m "chore(board): nightly regeneration through the actor (的確表示)"
+            git push
+          else
+            echo "board unchanged"
+          fi
