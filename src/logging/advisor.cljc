@@ -41,7 +41,7 @@
   reach a commit path even if this advisor were compromised."
   (:require #?(:clj  [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [logging.registry :as registry]
             [logging.store :as store]
             [langchain.model :as model]))
