@@ -5,12 +5,12 @@
   Wave5 rollout). This repo previously had NO demo page and no generator.
   Drives the REAL actor stack (`logging.operation` -> `logging.governor`
   -> `logging.store`) through a scenario adapted from this repo's own
-  `logging.sim` demo driver (`clojure -M:dev:run`, whose request ids
+  `logging.sim` demo driver (`kbb -M:dev:run`, whose request ids
   match `logging.store`'s real seeded sites), trimmed to a representative
   subset and rendered deterministically -- no invented numbers, no
   timestamps in the page content, byte-identical across reruns.
 
-  Usage: `clojure -M:dev:render-html [out-file]`
+  Usage: `kbb -M:dev:render-html [out-file]`
   (default `docs/samples/operator-console.html`)."
   (:require [kotoba.lang.text :as str]
             [logging.store :as store]
@@ -129,7 +129,7 @@
      "<main>\n"
      "  <section class=\"card\">\n"
      "    <h2>Logging sites</h2>\n"
-     "    <p class=\"muted\">Demo snapshot — build-time-generated from <code>logging.store</code> via <code>logging.render-html</code> (<code>clojure -M:dev:render-html</code>), regenerated nightly. No invented usage or revenue metrics.</p>\n"
+     "    <p class=\"muted\">Demo snapshot — build-time-generated from <code>logging.store</code> via <code>logging.render-html</code> (<code>kbb -M:dev:render-html</code>), regenerated nightly. No invented usage or revenue metrics.</p>\n"
      "    <table>\n"
      "      <thead><tr><th>Site</th><th>Parcel</th><th>Species</th><th>Allowable (m³)</th><th>Harvested (m³)</th><th>Last op status</th></tr></thead>\n"
      "      <tbody>\n"

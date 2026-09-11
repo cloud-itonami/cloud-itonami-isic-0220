@@ -26,7 +26,7 @@ LoggingAdvisor ⊣ Logging Coordination Governor actor") shipped only
 `src/logging/{advisor,governor,operation,phase,sim,store}.cljc` and a
 single test file, with NO `deps.edn`, NO `registry.cljc`, and NO
 `blueprint.edn`/`LICENSE`/`GOVERNANCE.md`/`CODE_OF_CONDUCT.md`/
-`CONTRIBUTING.md`/`SECURITY.md` -- `clojure -M:test` could not even
+`CONTRIBUTING.md`/`SECURITY.md` -- `kbb -M:test` could not even
 resolve dependencies, so no test claim from that attempt was
 independently verifiable. It also used `System.currentTimeMillis`
 (JVM-only, not cljs-portable) and different, unspecified op names
@@ -138,11 +138,11 @@ standalone coordinator blueprint.
 
 ## Verification
 
-- `cloud-itonami-isic-0220`: `clojure -M:test` green (all tests pass;
+- `cloud-itonami-isic-0220`: `kbb -M:test` green (all tests pass;
   see the superproject ADR and `kotoba-lang/industry` registry entry
   for the exact `Ran N tests containing M assertions, 0 failures, 0
   errors` output, verified from an independent fresh clone), `clojure
-  -M:lint` clean, `clojure -M:dev:run` demo narrative exercises
+  -M:lint` clean, `kbb -M:dev:run` demo narrative exercises
   proposal submission, escalation, and every HARD-hold scenario
   directly (not-propose-effect, unknown-op, site-not-verified/permit-
   pending, felling-exceeds-permit-allowance, harvest-finalize-blocked,
@@ -158,4 +158,4 @@ standalone coordinator blueprint.
 - `deps.edn` pins `io.github.kotoba-lang/langgraph` and
   `io.github.kotoba-lang/langchain` via `:local/root` directly in the
   top-level `:deps` (not only under a `:dev` alias), so a bare
-  `clojure -M:test` resolves offline inside the monorepo checkout.
+  `kbb -M:test` resolves offline inside the monorepo checkout.

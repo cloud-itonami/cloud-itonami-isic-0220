@@ -1,6 +1,6 @@
 # Nightly regeneration -- freshness automation (flagship checklist item 4,
 # ADR-2607189300 Wave5): rebuild docs/samples/operator-console.html through
-# the real actor (clojure -M:dev:render-html runs the full OperationActor
+# the real actor (kbb -M:dev:render-html runs the full OperationActor
 # StateGraph -- LoggingCoord advisor -> Logging Governor -> phase gate ->
 # approval -- against the seeded site directory) and commit only when the
 # rendered board actually changed. Mirrors cloud-itonami-isic-6820's
@@ -29,7 +29,7 @@ jobs:
         with: { cli: latest }
       - name: regenerate through the real actor
         working-directory: orgs/cloud-itonami/cloud-itonami-isic-0220
-        run: clojure -M:dev:render-html
+        run: kbb -M:dev:render-html
       - name: verify (real output, not scaffolding)
         working-directory: orgs/cloud-itonami/cloud-itonami-isic-0220
         run: |
