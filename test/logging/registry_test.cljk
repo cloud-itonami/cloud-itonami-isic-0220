@@ -1,5 +1,5 @@
 (ns logging.registry-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [kotoba.test :refer [deftest is]]
             [logging.registry :as r]))
 
 ;; ----------------------------- site-verified? / permit-issued? / site-permit-ready? -----------------------------
