@@ -1,0 +1,22 @@
+{:physics/schema "itonami.physical-ai.spec.v1"
+ :repo "cloud-itonami/cloud-itonami-isic-0220"
+ :cases
+ [{:id :forwarder-extraction-trail
+   :kind :transport
+   :procedure "loaded forwarder carries a load of cut logs up the extraction trail to the roadside landing"
+   :params {:mass-kg 14000.0 :payload-kg 10000.0 :distance-m 300.0 :v-max-mps 1.5 :a-max-mps2 0.3
+            :brake-decel-mps2 1.0 :drive-force-n 130000.0 :crr 0.10
+            :cog-height-m 1.40 :support-half-length-m 2.0 :max-time-s 3000.0}
+   :sweep {:param :slope-deg :values [0.0 5.0 10.0 15.0 20.0 25.0]}
+   :quantity :cycle-time-s
+   :limit {:max 400.0 :basis "estimate: one 300 m loaded leg inside the ~7 min per-load budget of a short-distance forwarding cycle"}
+   :boundary {:lo 0.0 :hi 40.0}}
+  {:id :loader-crane-log-lift
+   :kind :manipulator
+   :procedure "forwarder loader crane swings a log bundle from the ground onto the load bunk"
+   :params {:l1-m 4.0 :l2-m 3.5 :m1-kg 250.0 :m2-kg 180.0
+            :from [5.0 0.0] :to [1.5 2.5] :duration-s 6.0 :steps 600}
+   :sweep {:param :payload-kg :values [200.0 400.0 600.0 800.0 1000.0]}
+   :quantity :peak-tau1-nm
+   :limit {:max 100000.0 :basis "estimate: gross lifting moment of a ~100 kN.m class forwarder loader crane"}
+   :boundary {:lo 50.0 :hi 4000.0}}]}
